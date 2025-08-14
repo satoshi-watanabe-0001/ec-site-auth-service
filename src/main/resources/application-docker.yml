@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/${DB_NAME:ahamo_dummy_demo2}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+# JWT Configuration (Optional - uncomment if needed)
+# jwt:
+#   secret: ${JWT_SECRET}
+#   access-token-expiration: 3600000
+#   refresh-token-expiration: 86400000
+
+logging:
+  level:
+    com.ahamo.dummy.demo2: INFO
+    org.springframework.security: WARN
