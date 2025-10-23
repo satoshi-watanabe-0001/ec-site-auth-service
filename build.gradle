@@ -7,7 +7,7 @@ plugins {
     id 'com.diffplug.spotless' version '6.23.3'
 }
 
-group = 'com.ahamo.dummy.demo2'
+group = 'com.ecsite'
 version = '1.0.0-SNAPSHOT'
 
 java {
@@ -35,10 +35,10 @@ dependencies {
     // Database Migration
     implementation 'org.flywaydb:flyway-core'
 
-    // JWT (Optional - uncomment if needed)
-    // implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
-    // runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
-    // runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+    // JWT
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
 
     // Database
     implementation 'org.postgresql:postgresql'
@@ -104,8 +104,8 @@ spotless {
 
 sonarqube {
     properties {
-        property "sonar.projectKey", "ahamo-dummy-demo2-backend-template"
-        property "sonar.projectName", "Ahamo Dummy Demo2 Backend Template"
+        property "sonar.projectKey", "ec-site-auth-service"
+        property "sonar.projectName", "EC Site Auth Service"
         property "sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml"
         property "sonar.coverage.exclusions", "**/config/**, **/dto/**, **/entity/**, **/*Application.java"
     }

@@ -1,16 +1,16 @@
 server:
-  port: 8081
+  port: 8080
   servlet:
-    context-path: /
+    context-path: /api/v1
 
 spring:
   application:
-    name: ${SERVICE_NAME:ec-site-auth-service}
+    name: ${SERVICE_NAME:backend-template-service}
   
   datasource:
-    url: jdbc:postgresql://localhost:5432/${DB_NAME:ec_site_auth}
-    username: ${DB_USERNAME:ec_site_user}
-    password: ${DB_PASSWORD:ec_site_password}
+    url: jdbc:postgresql://localhost:5432/${DB_NAME:ahamo_dummy_demo2}
+    username: ${DB_USERNAME:ahamo_user}
+    password: ${DB_PASSWORD:ahamo_password}
     driver-class-name: org.postgresql.Driver
     
   jpa:
@@ -33,11 +33,11 @@ spring:
       password: admin
       roles: ADMIN
 
-# JWT Configuration
-jwt:
-  secret: ${JWT_SECRET:mySecretKeyForECSiteAuthServicePleaseChangeInProduction}
-  access-token-expiration: 900000  # 15 minutes in milliseconds
-  refresh-token-expiration: 2592000000 # 30 days in milliseconds
+# JWT Configuration (Optional - uncomment if needed)
+# jwt:
+#   secret: ${JWT_SECRET:mySecretKey}
+#   access-token-expiration: 3600000  # 1 hour in milliseconds
+#   refresh-token-expiration: 86400000 # 24 hours in milliseconds
 
 # Rate Limiting Configuration (Optional - uncomment if needed)
 # rate-limit:
@@ -47,7 +47,7 @@ jwt:
 # Logging Configuration
 logging:
   level:
-    com.ecsite.auth: INFO
+    com.ahamo.dummy.demo2: INFO
     org.springframework.security: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
