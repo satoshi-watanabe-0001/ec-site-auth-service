@@ -61,6 +61,9 @@ jobs:
       env:
         PGPASSWORD: test_password
         
+    - name: Code quality checks
+      run: ./gradlew spotlessCheck
+      
     - name: Run tests
       run: ./gradlew test jacocoTestReport
       env:
@@ -68,6 +71,12 @@ jobs:
         TEST_DATABASE_USERNAME: test_user
         TEST_DATABASE_PASSWORD: test_password
         JWT_SECRET: dGVzdFNlY3JldEtleUZvckpXVFRva2VuVGVzdGluZ1B1cnBvc2VzMTIzNDU2Nzg5MA==
+        
+    - name: Build application
+      run: ./gradlew build -x test
+      
+    - name: Verify coverage threshold
+      run: ./gradlew jacocoTestCoverageVerification
         
     - name: Generate test report
       uses: dorny/test-reporter@v1

@@ -1,8 +1,12 @@
 package com.ecsite.auth.controller;
 
 import com.ecsite.auth.dto.CreateUserRequest;
+import com.ecsite.auth.dto.EmailVerificationRequest;
+import com.ecsite.auth.dto.EmailVerificationResponse;
+import com.ecsite.auth.dto.MemberRegistrationRequest;
 import com.ecsite.auth.dto.RegistrationResponse;
 import com.ecsite.auth.exception.UserAlreadyExistsException;
+import com.ecsite.auth.service.EmailVerificationService;
 import com.ecsite.auth.service.UserRegistrationService;
 import jakarta.validation.Valid;
 import java.time.LocalDateTime;
@@ -21,19 +25,66 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/api/v1")
 @RequiredArgsConstructor
 @Slf4j
 public class AuthController {
 
   private final UserRegistrationService userRegistrationService;
+  private final EmailVerificationService emailVerificationService;
 
-  @PostMapping("/register")
+  /**
+   * 既存の会員登録エンドポイント
+   *
+   * @param request 会員登録リクエスト（email, password, firstName, lastName形式）
+   * @return 登録結果レスポンス
+   */
+  @PostMapping("/auth/register")
   public ResponseEntity<RegistrationResponse> register(
       @Valid @RequestBody CreateUserRequest request) {
     log.info("Registration request received for email: {}", request.getEmail());
     RegistrationResponse response = userRegistrationService.registerUser(request);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  /**
+   * EC-11: 会員登録API
+   *
+   * <p>チケット仕様に基づく会員登録エンドポイント。 {name, description, status}形式のリクエストを受け付けます。
+   *
+   * @param request 会員登録リクエスト（name, description, status形式）
+   * @return 登録結果レスポンス
+   */
+  @PostMapping("/会員登録")
+  public ResponseEntity<RegistrationResponse> registerMember(
+      @Valid @RequestBody MemberRegistrationRequest request) {
+    log.info("Member registration request received for name: {}", request.getName());
+    RegistrationResponse response = userRegistrationService.registerMember(request);
+    return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  /**
+   * メールアドレス認証エンドポイント
+   *
+   * <p>メール認証トークンを検証し、ユーザーのメールアドレスを認証済みにします。
+   *
+   * @param request メール認証リクエスト
+   * @return 認証結果レスポンス
+   */
+  @PostMapping("/auth/verify-email")
+  public ResponseEntity<EmailVerificationResponse> verifyEmail(
+      @Valid @RequestBody EmailVerificationRequest request) {
+    log.info("Email verification request received for token: {}", request.getToken());
+
+    boolean verified = emailVerificationService.verifyEmail(request.getToken());
+
+    EmailVerificationResponse response =
+        EmailVerificationResponse.builder()
+            .status("success")
+            .message("Email verified successfully")
+            .build();
+
+    return ResponseEntity.ok(response);
   }
 
   @ExceptionHandler(UserAlreadyExistsException.class)

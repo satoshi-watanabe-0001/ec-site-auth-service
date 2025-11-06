@@ -7,19 +7,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.ecsite.auth.config.SecurityConfig;
 import com.ecsite.auth.dto.AuthTokenResponse;
 import com.ecsite.auth.dto.CreateUserRequest;
 import com.ecsite.auth.dto.RegistrationResponse;
 import com.ecsite.auth.dto.UserResponse;
 import com.ecsite.auth.entity.User;
 import com.ecsite.auth.exception.UserAlreadyExistsException;
+import com.ecsite.auth.service.EmailVerificationService;
 import com.ecsite.auth.service.UserRegistrationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.ecsite.auth.config.SecurityConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -36,6 +37,8 @@ class AuthControllerTest {
   @Autowired private ObjectMapper objectMapper;
 
   @MockBean private UserRegistrationService userRegistrationService;
+
+  @MockBean private EmailVerificationService emailVerificationService;
 
   private CreateUserRequest validRequest;
   private RegistrationResponse successResponse;

@@ -86,6 +86,27 @@ jacoco {
     toolVersion = "0.8.8"
 }
 
+jacocoTestCoverageVerification {
+    dependsOn test
+    violationRules {
+        rule {
+            limit {
+                minimum = 0.80
+            }
+        }
+    }
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                '**/config/**',
+                '**/dto/**',
+                '**/entity/**',
+                '**/*Application.class'
+            ])
+        }))
+    }
+}
+
 spotless {
     java {
         googleJavaFormat()
