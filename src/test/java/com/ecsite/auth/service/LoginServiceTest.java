@@ -25,6 +25,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+/**
+ * LoginServiceの単体テスト
+ *
+ * <p>LoginServiceの認証ロジックをテストする。 主要な分岐（成功ケース、ユーザー未発見、パスワード不一致、非ACTIVEユーザー）を網羅し、 80%以上のコードカバレッジを達成する。
+ *
+ * @since 1.0
+ */
 @ExtendWith(MockitoExtension.class)
 class LoginServiceTest {
 

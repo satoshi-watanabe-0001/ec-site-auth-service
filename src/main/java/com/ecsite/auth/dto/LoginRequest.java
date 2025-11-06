@@ -7,6 +7,22 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * ログインリクエストDTO
+ *
+ * <p>ユーザーログイン時のリクエストボディを表現する。 メールアドレスとパスワードによる認証に必要な情報を含む。
+ *
+ * <p>バリデーション:
+ *
+ * <ul>
+ *   <li>email: 必須、メール形式
+ *   <li>password: 必須
+ *   <li>rememberMe: 任意（デフォルト: false）
+ * </ul>
+ *
+ * @since 1.0
+ * @see LoginResponse
+ */
 @Data
 @Builder
 @NoArgsConstructor

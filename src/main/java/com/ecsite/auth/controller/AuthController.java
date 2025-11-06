@@ -95,10 +95,19 @@ public class AuthController {
   /**
    * EC-13: ログインAPI
    *
-   * <p>メールアドレスとパスワードによる認証を行い、JWTトークンを発行します。
+   * <p>メールアドレスとパスワードによる認証を行い、JWTトークンを発行します。 認証成功時にHTTP 200とJWTトークンを返します。
    *
-   * @param request ログインリクエスト（email, password形式）
-   * @return ログイン結果レスポンス（トークンとユーザー情報）
+   * <p>エラーレスポンス:
+   *
+   * <ul>
+   *   <li>400 Bad Request: バリデーションエラー（メール形式不正、必須項目未入力）
+   *   <li>401 Unauthorized: 認証失敗（メール/パスワード不正、アカウント非アクティブ）
+   * </ul>
+   *
+   * @param request ログインリクエスト（email, password, rememberMe）。nullは許可されない。
+   * @return HTTP 200とJWTトークン（アクセストークン、リフレッシュトークン）およびユーザー情報
+   * @since 1.0
+   * @see LoginService#authenticateUser(LoginRequest)
    */
   @PostMapping("/auth/login")
   public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
@@ -107,6 +116,21 @@ public class AuthController {
     return ResponseEntity.ok(response);
   }
 
+  /**
+   * 認証失敗時のエラーハンドラ
+   *
+   * <p>BadCredentialsExceptionをキャッチし、HTTP 401 Unauthorizedレスポンスを返す。 エラーレスポンスには以下の情報を含む:
+   *
+   * <ul>
+   *   <li>status: "error"
+   *   <li>message: 例外メッセージ（"Invalid email or password" など）
+   *   <li>timestamp: エラー発生時刻
+   * </ul>
+   *
+   * @param ex BadCredentialsException（認証失敗例外）
+   * @return HTTP 401とエラー詳細を含むレスポンス
+   * @since 1.0
+   */
   @ExceptionHandler(BadCredentialsException.class)
   public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException ex) {
     log.warn("Authentication failed: {}", ex.getMessage());

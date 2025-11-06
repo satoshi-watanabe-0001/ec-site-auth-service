@@ -12,6 +12,24 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * ユーザーログイン認証サービス
+ *
+ * <p>メール/パスワード認証によるユーザーログイン処理を担当する。 認証成功時にJWTトークン（アクセストークン + リフレッシュトークン）を発行する。
+ *
+ * <p>セキュリティ考慮事項:
+ *
+ * <ul>
+ *   <li>パスワード検証にBCryptを使用（strength 12）
+ *   <li>ユーザー列挙攻撃対策として汎用エラーメッセージを返す
+ *   <li>ACTIVEステータスのユーザーのみログイン許可
+ * </ul>
+ *
+ * @since 1.0
+ * @see LoginRequest
+ * @see LoginResponse
+ * @see JwtUtil
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -21,6 +39,26 @@ public class LoginService {
   private final BCryptPasswordEncoder passwordEncoder;
   private final JwtUtil jwtUtil;
 
+  /**
+   * ユーザーを認証し、JWTトークンを発行する
+   *
+   * <p>以下の処理を順次実行:
+   *
+   * <ol>
+   *   <li>メールアドレスでユーザーを検索
+   *   <li>パスワードをBCryptで検証
+   *   <li>ユーザーステータスがACTIVEであることを確認
+   *   <li>アクセストークンとリフレッシュトークンを生成
+   * </ol>
+   *
+   * <p>セキュリティ上の理由により、ユーザー未発見とパスワード不一致は 同じエラーメッセージ "Invalid email or password" を返す。
+   * これによりユーザー列挙攻撃を防ぐ。
+   *
+   * @param request ログインリクエスト（メール、パスワード、rememberMeフラグ）。nullは許可されない。
+   * @return JWTトークンとユーザー情報を含む {@link LoginResponse}
+   * @throws BadCredentialsException ユーザーが存在しない、パスワードが不正、 またはユーザーステータスがACTIVEでない場合
+   * @since 1.0
+   */
   @Transactional(readOnly = true)
   public LoginResponse authenticateUser(LoginRequest request) {
     log.info("Authentication attempt for email: {}", request.getEmail());
