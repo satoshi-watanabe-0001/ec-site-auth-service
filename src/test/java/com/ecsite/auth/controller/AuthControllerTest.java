@@ -15,6 +15,7 @@ import com.ecsite.auth.dto.UserResponse;
 import com.ecsite.auth.entity.User;
 import com.ecsite.auth.exception.UserAlreadyExistsException;
 import com.ecsite.auth.service.EmailVerificationService;
+import com.ecsite.auth.service.LoginService;
 import com.ecsite.auth.service.UserRegistrationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
@@ -39,6 +40,8 @@ class AuthControllerTest {
   @MockBean private UserRegistrationService userRegistrationService;
 
   @MockBean private EmailVerificationService emailVerificationService;
+
+  @MockBean private LoginService loginService;
 
   private CreateUserRequest validRequest;
   private RegistrationResponse successResponse;

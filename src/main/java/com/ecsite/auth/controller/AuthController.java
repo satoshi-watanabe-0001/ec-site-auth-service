@@ -3,10 +3,13 @@ package com.ecsite.auth.controller;
 import com.ecsite.auth.dto.CreateUserRequest;
 import com.ecsite.auth.dto.EmailVerificationRequest;
 import com.ecsite.auth.dto.EmailVerificationResponse;
+import com.ecsite.auth.dto.LoginRequest;
+import com.ecsite.auth.dto.LoginResponse;
 import com.ecsite.auth.dto.MemberRegistrationRequest;
 import com.ecsite.auth.dto.RegistrationResponse;
 import com.ecsite.auth.exception.UserAlreadyExistsException;
 import com.ecsite.auth.service.EmailVerificationService;
+import com.ecsite.auth.service.LoginService;
 import com.ecsite.auth.service.UserRegistrationService;
 import jakarta.validation.Valid;
 import java.time.LocalDateTime;
@@ -17,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,6 +36,7 @@ public class AuthController {
 
   private final UserRegistrationService userRegistrationService;
   private final EmailVerificationService emailVerificationService;
+  private final LoginService loginService;
 
   /**
    * 既存の会員登録エンドポイント
@@ -85,6 +90,57 @@ public class AuthController {
             .build();
 
     return ResponseEntity.ok(response);
+  }
+
+  /**
+   * EC-13: ログインAPI
+   *
+   * <p>メールアドレスとパスワードによる認証を行い、JWTトークンを発行します。 認証成功時にHTTP 200とJWTトークンを返します。
+   *
+   * <p>エラーレスポンス:
+   *
+   * <ul>
+   *   <li>400 Bad Request: バリデーションエラー（メール形式不正、必須項目未入力）
+   *   <li>401 Unauthorized: 認証失敗（メール/パスワード不正、アカウント非アクティブ）
+   * </ul>
+   *
+   * @param request ログインリクエスト（email, password, rememberMe）。nullは許可されない。
+   * @return HTTP 200とJWTトークン（アクセストークン、リフレッシュトークン）およびユーザー情報
+   * @since 1.0
+   * @see LoginService#authenticateUser(LoginRequest)
+   */
+  @PostMapping("/auth/login")
+  public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+    log.info("Login request received for email: {}", request.getEmail());
+    LoginResponse response = loginService.authenticateUser(request);
+    return ResponseEntity.ok(response);
+  }
+
+  /**
+   * 認証失敗時のエラーハンドラ
+   *
+   * <p>BadCredentialsExceptionをキャッチし、HTTP 401 Unauthorizedレスポンスを返す。 エラーレスポンスには以下の情報を含む:
+   *
+   * <ul>
+   *   <li>status: "error"
+   *   <li>message: 例外メッセージ（"Invalid email or password" など）
+   *   <li>timestamp: エラー発生時刻
+   * </ul>
+   *
+   * @param ex BadCredentialsException（認証失敗例外）
+   * @return HTTP 401とエラー詳細を含むレスポンス
+   * @since 1.0
+   */
+  @ExceptionHandler(BadCredentialsException.class)
+  public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException ex) {
+    log.warn("Authentication failed: {}", ex.getMessage());
+
+    Map<String, Object> errorResponse = new HashMap<>();
+    errorResponse.put("status", "error");
+    errorResponse.put("message", ex.getMessage());
+    errorResponse.put("timestamp", LocalDateTime.now());
+
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
   }
 
   @ExceptionHandler(UserAlreadyExistsException.class)
