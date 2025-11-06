@@ -61,7 +61,7 @@ public class LoginService {
     return LoginResponse.builder()
         .accessToken(accessToken)
         .refreshToken(refreshToken)
-        .tokenType("Bearer")
+        .tokenType("bearer")
         .expiresIn(900)
         .user(userInfo)
         .build();
