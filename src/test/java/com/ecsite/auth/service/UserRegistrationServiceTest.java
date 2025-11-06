@@ -11,15 +11,16 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.ecsite.auth.dto.CreateUserRequest;
+import com.ecsite.auth.dto.MemberRegistrationRequest;
 import com.ecsite.auth.dto.RegistrationResponse;
 import com.ecsite.auth.dto.UserResponse;
 import com.ecsite.auth.entity.User;
 import com.ecsite.auth.exception.UserAlreadyExistsException;
 import com.ecsite.auth.mapper.UserMapper;
+import com.ecsite.auth.repository.EmailVerificationTokenRepository;
 import com.ecsite.auth.repository.UserRepository;
 import com.ecsite.auth.security.JwtUtil;
 import java.time.LocalDateTime;
-import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,11 +35,15 @@ class UserRegistrationServiceTest {
 
   @Mock private UserRepository userRepository;
 
+  @Mock private EmailVerificationTokenRepository emailVerificationTokenRepository;
+
   @Mock private BCryptPasswordEncoder passwordEncoder;
 
   @Mock private JwtUtil jwtUtil;
 
   @Mock private UserMapper userMapper;
+
+  @Mock private EmailVerificationService emailVerificationService;
 
   @InjectMocks private UserRegistrationService userRegistrationService;
 
@@ -77,8 +82,7 @@ class UserRegistrationServiceTest {
     userResponse.setEmailVerified(false);
 
     when(userRepository.existsByEmail(validRequest.getEmail())).thenReturn(false);
-    when(passwordEncoder.encode(validRequest.getPassword()))
-        .thenReturn("$2a$12$hashedPassword");
+    when(passwordEncoder.encode(validRequest.getPassword())).thenReturn("$2a$12$hashedPassword");
     when(userRepository.save(any(User.class))).thenReturn(savedUser);
     when(userMapper.toUserResponse(any(User.class))).thenReturn(userResponse);
     when(jwtUtil.generateAccessToken(any(UUID.class), anyString(), anyString()))
@@ -109,8 +113,7 @@ class UserRegistrationServiceTest {
     when(userRepository.existsByEmail(validRequest.getEmail())).thenReturn(true);
 
     assertThrows(
-        UserAlreadyExistsException.class,
-        () -> userRegistrationService.registerUser(validRequest));
+        UserAlreadyExistsException.class, () -> userRegistrationService.registerUser(validRequest));
 
     verify(userRepository).existsByEmail(validRequest.getEmail());
     verify(passwordEncoder, never()).encode(anyString());
@@ -120,8 +123,7 @@ class UserRegistrationServiceTest {
   @Test
   void registerUser_PasswordIsHashed() {
     when(userRepository.existsByEmail(validRequest.getEmail())).thenReturn(false);
-    when(passwordEncoder.encode(validRequest.getPassword()))
-        .thenReturn("$2a$12$hashedPassword");
+    when(passwordEncoder.encode(validRequest.getPassword())).thenReturn("$2a$12$hashedPassword");
     when(userRepository.save(any(User.class))).thenReturn(savedUser);
     when(userMapper.toUserResponse(any(User.class))).thenReturn(new UserResponse());
     when(jwtUtil.generateAccessToken(any(UUID.class), anyString(), anyString()))
@@ -151,8 +153,7 @@ class UserRegistrationServiceTest {
 
     userRegistrationService.registerUser(validRequest);
 
-    verify(userRepository)
-        .save(argThat(user -> user.getStatus() == User.UserStatus.PENDING));
+    verify(userRepository).save(argThat(user -> user.getStatus() == User.UserStatus.PENDING));
   }
 
   @Test
@@ -168,5 +169,119 @@ class UserRegistrationServiceTest {
     userRegistrationService.registerUser(validRequest);
 
     verify(userRepository).save(argThat(user -> user.getEmailVerifiedAt() == null));
+  }
+
+  @Test
+  void registerMember_Success() {
+    MemberRegistrationRequest memberRequest = new MemberRegistrationRequest();
+    memberRequest.setName("test-member");
+    memberRequest.setDescription("Test member description");
+    memberRequest.setStatus("PENDING");
+
+    UserResponse userResponse = new UserResponse();
+    userResponse.setId(savedUser.getId());
+    userResponse.setEmail("test-member");
+    userResponse.setFirstName("test-member");
+    userResponse.setLastName("Test member description");
+    userResponse.setStatus(User.UserStatus.PENDING);
+    userResponse.setCreatedAt(savedUser.getCreatedAt());
+    userResponse.setUpdatedAt(savedUser.getUpdatedAt());
+    userResponse.setEmailVerified(false);
+
+    when(userRepository.existsByEmail(memberRequest.getName())).thenReturn(false);
+    when(passwordEncoder.encode(anyString())).thenReturn("$2a$12$hashedPassword");
+    when(userRepository.save(any(User.class))).thenReturn(savedUser);
+    when(userMapper.toUserResponse(any(User.class))).thenReturn(userResponse);
+    when(jwtUtil.generateAccessToken(any(UUID.class), anyString(), anyString()))
+        .thenReturn("access-token");
+    when(jwtUtil.generateRefreshToken(any(UUID.class))).thenReturn("refresh-token");
+    when(emailVerificationService.generateVerificationToken(any(User.class)))
+        .thenReturn("verification-token");
+
+    RegistrationResponse response = userRegistrationService.registerMember(memberRequest);
+
+    assertNotNull(response);
+    assertEquals("success", response.getStatus());
+    assertEquals(
+        "Member registration successful. Please verify your email.", response.getMessage());
+    assertNotNull(response.getData());
+    assertNotNull(response.getTokens());
+    assertEquals("access-token", response.getTokens().getAccessToken());
+    assertEquals("refresh-token", response.getTokens().getRefreshToken());
+
+    verify(userRepository).existsByEmail(memberRequest.getName());
+    verify(passwordEncoder).encode(anyString());
+    verify(userRepository).save(any(User.class));
+    verify(emailVerificationService).generateVerificationToken(any(User.class));
+    verify(jwtUtil).generateAccessToken(any(UUID.class), anyString(), anyString());
+    verify(jwtUtil).generateRefreshToken(any(UUID.class));
+  }
+
+  @Test
+  void registerMember_DuplicateName_ThrowsException() {
+    MemberRegistrationRequest memberRequest = new MemberRegistrationRequest();
+    memberRequest.setName("test-member");
+    memberRequest.setDescription("Test member description");
+    memberRequest.setStatus("PENDING");
+
+    when(userRepository.existsByEmail(memberRequest.getName())).thenReturn(true);
+
+    assertThrows(
+        UserAlreadyExistsException.class,
+        () -> userRegistrationService.registerMember(memberRequest));
+
+    verify(userRepository).existsByEmail(memberRequest.getName());
+    verify(passwordEncoder, never()).encode(anyString());
+    verify(userRepository, never()).save(any(User.class));
+    verify(emailVerificationService, never()).generateVerificationToken(any(User.class));
+  }
+
+  @Test
+  void registerMember_InvalidStatus_DefaultsToPending() {
+    MemberRegistrationRequest memberRequest = new MemberRegistrationRequest();
+    memberRequest.setName("test-member");
+    memberRequest.setDescription("Test member description");
+    memberRequest.setStatus("INVALID_STATUS");
+
+    when(userRepository.existsByEmail(memberRequest.getName())).thenReturn(false);
+    when(passwordEncoder.encode(anyString())).thenReturn("$2a$12$hashedPassword");
+    when(userRepository.save(any(User.class))).thenReturn(savedUser);
+    when(userMapper.toUserResponse(any(User.class))).thenReturn(new UserResponse());
+    when(jwtUtil.generateAccessToken(any(UUID.class), anyString(), anyString()))
+        .thenReturn("access-token");
+    when(jwtUtil.generateRefreshToken(any(UUID.class))).thenReturn("refresh-token");
+    when(emailVerificationService.generateVerificationToken(any(User.class)))
+        .thenReturn("verification-token");
+
+    userRegistrationService.registerMember(memberRequest);
+
+    verify(userRepository).save(argThat(user -> user.getStatus() == User.UserStatus.PENDING));
+  }
+
+  @Test
+  void registerMember_ValidStatus_SetsCorrectStatus() {
+    MemberRegistrationRequest memberRequest = new MemberRegistrationRequest();
+    memberRequest.setName("test-member");
+    memberRequest.setDescription("Test member description");
+    memberRequest.setStatus("ACTIVE");
+
+    User activeUser = new User();
+    activeUser.setId(UUID.randomUUID());
+    activeUser.setEmail("test-member");
+    activeUser.setStatus(User.UserStatus.ACTIVE);
+
+    when(userRepository.existsByEmail(memberRequest.getName())).thenReturn(false);
+    when(passwordEncoder.encode(anyString())).thenReturn("$2a$12$hashedPassword");
+    when(userRepository.save(any(User.class))).thenReturn(activeUser);
+    when(userMapper.toUserResponse(any(User.class))).thenReturn(new UserResponse());
+    when(jwtUtil.generateAccessToken(any(UUID.class), anyString(), anyString()))
+        .thenReturn("access-token");
+    when(jwtUtil.generateRefreshToken(any(UUID.class))).thenReturn("refresh-token");
+    when(emailVerificationService.generateVerificationToken(any(User.class)))
+        .thenReturn("verification-token");
+
+    userRegistrationService.registerMember(memberRequest);
+
+    verify(userRepository).save(argThat(user -> user.getStatus() == User.UserStatus.ACTIVE));
   }
 }
