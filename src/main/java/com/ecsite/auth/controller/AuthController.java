@@ -3,10 +3,13 @@ package com.ecsite.auth.controller;
 import com.ecsite.auth.dto.CreateUserRequest;
 import com.ecsite.auth.dto.EmailVerificationRequest;
 import com.ecsite.auth.dto.EmailVerificationResponse;
+import com.ecsite.auth.dto.LoginRequest;
+import com.ecsite.auth.dto.LoginResponse;
 import com.ecsite.auth.dto.MemberRegistrationRequest;
 import com.ecsite.auth.dto.RegistrationResponse;
 import com.ecsite.auth.exception.UserAlreadyExistsException;
 import com.ecsite.auth.service.EmailVerificationService;
+import com.ecsite.auth.service.LoginService;
 import com.ecsite.auth.service.UserRegistrationService;
 import jakarta.validation.Valid;
 import java.time.LocalDateTime;
@@ -17,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,6 +36,7 @@ public class AuthController {
 
   private final UserRegistrationService userRegistrationService;
   private final EmailVerificationService emailVerificationService;
+  private final LoginService loginService;
 
   /**
    * 既存の会員登録エンドポイント
@@ -85,6 +90,33 @@ public class AuthController {
             .build();
 
     return ResponseEntity.ok(response);
+  }
+
+  /**
+   * EC-13: ログインAPI
+   *
+   * <p>メールアドレスとパスワードによる認証を行い、JWTトークンを発行します。
+   *
+   * @param request ログインリクエスト（email, password形式）
+   * @return ログイン結果レスポンス（トークンとユーザー情報）
+   */
+  @PostMapping("/auth/login")
+  public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+    log.info("Login request received for email: {}", request.getEmail());
+    LoginResponse response = loginService.authenticateUser(request);
+    return ResponseEntity.ok(response);
+  }
+
+  @ExceptionHandler(BadCredentialsException.class)
+  public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException ex) {
+    log.warn("Authentication failed: {}", ex.getMessage());
+
+    Map<String, Object> errorResponse = new HashMap<>();
+    errorResponse.put("status", "error");
+    errorResponse.put("message", ex.getMessage());
+    errorResponse.put("timestamp", LocalDateTime.now());
+
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
   }
 
   @ExceptionHandler(UserAlreadyExistsException.class)
