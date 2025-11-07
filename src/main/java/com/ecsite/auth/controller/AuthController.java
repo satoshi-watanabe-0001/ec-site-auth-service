@@ -3,13 +3,17 @@ package com.ecsite.auth.controller;
 import com.ecsite.auth.dto.CreateUserRequest;
 import com.ecsite.auth.dto.EmailVerificationRequest;
 import com.ecsite.auth.dto.EmailVerificationResponse;
+import com.ecsite.auth.dto.ForgotPasswordRequest;
 import com.ecsite.auth.dto.LoginRequest;
 import com.ecsite.auth.dto.LoginResponse;
 import com.ecsite.auth.dto.MemberRegistrationRequest;
+import com.ecsite.auth.dto.PasswordResetResponse;
 import com.ecsite.auth.dto.RegistrationResponse;
+import com.ecsite.auth.dto.ResetPasswordRequest;
 import com.ecsite.auth.exception.UserAlreadyExistsException;
 import com.ecsite.auth.service.EmailVerificationService;
 import com.ecsite.auth.service.LoginService;
+import com.ecsite.auth.service.PasswordResetService;
 import com.ecsite.auth.service.UserRegistrationService;
 import jakarta.validation.Valid;
 import java.time.LocalDateTime;
@@ -37,6 +41,7 @@ public class AuthController {
   private final UserRegistrationService userRegistrationService;
   private final EmailVerificationService emailVerificationService;
   private final LoginService loginService;
+  private final PasswordResetService passwordResetService;
 
   /**
    * 既存の会員登録エンドポイント
@@ -113,6 +118,51 @@ public class AuthController {
   public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
     log.info("Login request received for email: {}", request.getEmail());
     LoginResponse response = loginService.authenticateUser(request);
+    return ResponseEntity.ok(response);
+  }
+
+  /**
+   * EC-15: パスワードリセット要求API
+   *
+   * <p>パスワードを忘れたユーザーがリセットトークンを要求します。 セキュリティ上の理由から、メールアドレスの存在に関わらず同じメッセージを返します。
+   *
+   * @param request パスワードリセット要求リクエスト（email）
+   * @return HTTP 200と成功メッセージ
+   */
+  @PostMapping("/auth/forgot-password")
+  public ResponseEntity<PasswordResetResponse> forgotPassword(
+      @Valid @RequestBody ForgotPasswordRequest request) {
+    log.info("Password reset requested for email: {}", request.getEmail());
+
+    String message = passwordResetService.generatePasswordResetToken(request.getEmail());
+
+    PasswordResetResponse response =
+        PasswordResetResponse.builder().status("success").message(message).build();
+
+    return ResponseEntity.ok(response);
+  }
+
+  /**
+   * EC-15: パスワードリセット実行API
+   *
+   * <p>リセットトークンと新しいパスワードを使用してパスワードを更新します。
+   *
+   * @param request パスワードリセット実行リクエスト（token, newPassword）
+   * @return HTTP 200と成功メッセージ
+   */
+  @PostMapping("/auth/reset-password")
+  public ResponseEntity<PasswordResetResponse> resetPassword(
+      @Valid @RequestBody ResetPasswordRequest request) {
+    log.info("Password reset execution requested");
+
+    passwordResetService.resetPassword(request.getToken(), request.getNewPassword());
+
+    PasswordResetResponse response =
+        PasswordResetResponse.builder()
+            .status("success")
+            .message("Password has been reset successfully")
+            .build();
+
     return ResponseEntity.ok(response);
   }
 
