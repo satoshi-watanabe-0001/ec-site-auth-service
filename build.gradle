@@ -5,6 +5,7 @@ plugins {
     id 'org.sonarqube' version '4.4.1.3373'
     id 'jacoco'
     id 'com.diffplug.spotless' version '6.23.3'
+    id 'checkstyle'
 }
 
 group = 'com.ecsite'
@@ -121,6 +122,13 @@ spotless {
         indentWithSpaces(4)
         endWithNewline()
     }
+}
+
+checkstyle {
+    toolVersion = '10.12.5'
+    configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
+    ignoreFailures = false
+    maxWarnings = 0
 }
 
 sonarqube {
