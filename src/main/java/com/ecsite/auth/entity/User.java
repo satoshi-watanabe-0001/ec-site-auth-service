@@ -58,11 +58,22 @@ public class User {
   @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
 
+  @Column(name = "deletion_scheduled_at")
+  private LocalDateTime deletionScheduledAt;
+
+  @Column(name = "deleted_at")
+  private LocalDateTime deletedAt;
+
+  @Column(name = "withdrawal_reason", columnDefinition = "TEXT")
+  private String withdrawalReason;
+
   public enum UserStatus {
     PENDING,
     ACTIVE,
     INACTIVE,
-    SUSPENDED
+    SUSPENDED,
+    PENDING_DELETION,
+    DELETED
   }
 
   public boolean isEmailVerified() {
