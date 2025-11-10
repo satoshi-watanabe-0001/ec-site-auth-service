@@ -82,10 +82,7 @@
 
         <!-- クラス設計 -->
         <module name="FinalClass"/>
-        <module name="HideUtilityClassConstructor">
-            <!-- Spring Bootアプリケーションクラスを除外 -->
-            <property name="ignoreFormat" value=".*Application$"/>
-        </module>
+        <!-- HideUtilityClassConstructor は Spring Boot アプリケーションクラスと競合するため無効化 -->
         <module name="InterfaceIsType"/>
         <module name="VisibilityModifier">
             <property name="protectedAllowed" value="true"/>
