@@ -4,6 +4,12 @@ on:
   pull_request:
     types: [opened, synchronize]  # 初回投稿時 + コミット追加時
 
+# GitHub API 呼び出しに必要な権限
+permissions:
+  contents: read           # リポジトリの読み取り
+  pull-requests: write     # PRへのコメント、ラベル操作
+  issues: write            # Issueコメント、ラベル操作（PRもIssueとして扱われる）
+
 jobs:
   remind-checklist:
     runs-on: ubuntu-latest

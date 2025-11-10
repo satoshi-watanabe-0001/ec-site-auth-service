@@ -9,6 +9,13 @@ on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
 
+# GitHub API 呼び出しに必要な権限
+permissions:
+  contents: read           # リポジトリの読み取り
+  pull-requests: write     # PRへのコメント、ラベル操作
+  issues: write            # Issueコメント、ラベル操作（PRもIssueとして扱われる）
+  statuses: write          # コミットステータスの更新
+
 jobs:
   check-pr-language:
     runs-on: ubuntu-latest
