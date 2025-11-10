@@ -2,15 +2,15 @@ name: PR Self-Review Reminder
 
 on:
   pull_request:
-    types: [opened]  # 初回投稿時のみ
+    types: [opened, synchronize]  # 初回投稿時 + コミット追加時
 
 jobs:
   remind-checklist:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Check if Already Commented
-        id: check_comment
+      - name: Check Checklist Confirmation
+        id: check_checklist
         uses: actions/github-script@v7
         with:
           script: |
@@ -20,75 +20,123 @@ jobs:
               issue_number: context.issue.number
             });
             
-            // 既にリマインダーコメントがあるか確認
+            // リマインダーコメントが既にあるか確認
             const hasReminder = comments.data.some(comment => 
               comment.user.type === 'Bot' && 
               comment.body.includes('チェックリストを正しく選定し、確認していますか')
             );
             
-            core.setOutput('already_commented', hasReminder);
+            // チェックリスト確認完了のコメントがあるか確認
+            const hasChecklistConfirmation = comments.data.some(comment => {
+              const body = comment.body.toLowerCase();
+              return (
+                // 確認完了の明示的な表現
+                body.includes('チェックリスト') && (
+                  body.includes('確認完了') ||
+                  body.includes('確認しました') ||
+                  body.includes('チェック完了') ||
+                  body.includes('レビュー完了') ||
+                  body.includes('セルフレビュー完了')
+                ) ||
+                // チェックリストの種類を明示
+                (body.includes('チェックリスト') && (
+                  body.includes('使用しました') ||
+                  body.includes('に沿って確認') ||
+                  body.includes('を確認')
+                ))
+              );
+            });
             
-            if (hasReminder) {
-              console.log('⏭️  リマインダーは既に投稿済みです');
+            // PR本文にチェックリスト確認の記載があるか確認
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            const prBody = (pr.data.body || '').toLowerCase();
+            const hasChecklistInPR = (
+              (prBody.includes('チェックリスト') && (
+                prBody.includes('確認完了') ||
+                prBody.includes('確認しました') ||
+                prBody.includes('に沿って確認')
+              )) ||
+              // PRテンプレートのチェックボックスが選択されているか確認
+              (prBody.includes('- [x]') && prBody.includes('チェックリスト'))
+            );
+            
+            const needsReminder = !hasChecklistConfirmation && !hasChecklistInPR;
+            
+            core.setOutput('already_commented', hasReminder);
+            core.setOutput('needs_reminder', needsReminder);
+            
+            if (hasChecklistConfirmation) {
+              console.log('✅ チェックリスト確認完了のコメントが見つかりました');
+            } else if (hasChecklistInPR) {
+              console.log('✅ PR本文にチェックリスト確認の記載があります');
+            } else if (hasReminder) {
+              console.log('⚠️  チェックリスト確認がまだ完了していません（リマインダー投稿済み）');
             } else {
-              console.log('✅ リマインダーを投稿します');
+              console.log('⚠️  チェックリスト確認がまだ完了していません（リマインダーを投稿します）');
             }
       
       - name: Post Checklist Reminder
-        if: steps.check_comment.outputs.already_commented == 'false'
+        if: steps.check_checklist.outputs.needs_reminder == 'true' && steps.check_checklist.outputs.already_commented == 'false'
         uses: actions/github-script@v7
         with:
           script: |
-            const reminder = `## 📋 セルフレビューリマインダー
-
-@${context.payload.pull_request.user.login} さん
-
-PRを投稿いただきありがとうございます！
-
-**マージ前に、組織標準のチェックリストを正しく選定し、確認していますか？**
-
----
-
-### 🔍 確認手順
-
-1. **適切なチェックリストを選定してください**
-   - 変更内容に応じた適切なチェックリストを \`organization-standards\` から選んでください
-   - 複数のチェックリストが該当する場合は、すべて確認してください
-
-2. **セルフレビューを実施してください**
-   - 選定したチェックリストに沿って、すべての項目を確認してください
-   - 不明な点があれば、ドキュメントを参照するか質問してください
-
-3. **確認完了をコメントしてください**
-   - チェックリスト確認完了後、このPRにコメントしてください
-   - どのチェックリストを使用したか明記してください
-
----
-
-### 📚 参考資料
-
-**組織標準ドキュメント**: \`/organization-standards\`
-
-主なチェックリスト:
-- [PRテンプレート](../organization-standards/08-templates/pr-templates/PULL_REQUEST_TEMPLATE.md)
-- [コードレビュー基準](../organization-standards/03-development-process/code-review-standards.md)
-- [コード品質基準](../organization-standards/04-quality-standards/code-quality-standards.md)
-- [コーディング規約](../organization-standards/01-coding-standards/)
-
----
-
-### ⚠️ 重要
-
-- このリマインダーは**初回PR投稿時のみ**表示されます
-- 適切なチェックリストの選定とセルフレビューは**必須**です
-- CI品質ゲートがすべて通過するまで、このPRはマージできません
-
----
-
-**AIエージェントの方へ**: 
-このコメントを受け取った場合は、\`organization-standards\` 内のドキュメントを確認し、
-このPRの変更内容に適したチェックリストを選定してセルフレビューを実施してください。
-`;
+            const reminder = [
+              '## 📋 セルフレビューリマインダー',
+              '',
+              '@' + context.payload.pull_request.user.login + ' さん',
+              '',
+              'PRを投稿いただきありがとうございます！',
+              '',
+              '**マージ前に、組織標準のチェックリストを正しく選定し、確認していますか？**',
+              '',
+              '---',
+              '',
+              '### 🔍 確認手順',
+              '',
+              '1. **適切なチェックリストを選定してください**',
+              '   - 変更内容に応じた適切なチェックリストを `devin-organization-standards` から選んでください',
+              '   - 複数のチェックリストが該当する場合は、すべて確認してください',
+              '',
+              '2. **セルフレビューを実施してください**',
+              '   - 選定したチェックリストに沿って、すべての項目を確認してください',
+              '   - 不明な点があれば、ドキュメントを参照するか質問してください',
+              '',
+              '3. **確認完了をコメントしてください**',
+              '   - チェックリスト確認完了後、このPRにコメントしてください',
+              '   - どのチェックリストを使用したか明記してください',
+              '',
+              '---',
+              '',
+              '### 📚 参考資料',
+              '',
+              '**組織標準ドキュメント**: `/devin-organization-standards`',
+              '',
+              '主なチェックリスト:',
+              '- [PRテンプレート](../devin-organization-standards/08-templates/pr-templates/PULL_REQUEST_TEMPLATE.md)',
+              '- [コードレビュー基準](../devin-organization-standards/03-development-process/code-review-standards.md)',
+              '- [コード品質基準](../devin-organization-standards/04-quality-standards/code-quality-standards.md)',
+              '- [コーディング規約](../devin-organization-standards/01-coding-standards/)',
+              '',
+              '---',
+              '',
+              '### ⚠️ 重要',
+              '',
+              '- このリマインダーは**チェックリスト確認が完了するまで**表示されます',
+              '- チェックリスト確認完了後は、コミット追加時にもリマインダーは表示されません',
+              '- 適切なチェックリストの選定とセルフレビューは**必須**です',
+              '- CI品質ゲートがすべて通過するまで、このPRはマージできません',
+              '',
+              '---',
+              '',
+              '**AIエージェントの方へ**: ',
+              'このコメントを受け取った場合は、`devin-organization-standards` 内のドキュメントを確認し、',
+              'このPRの変更内容に適したチェックリストを選定してセルフレビューを実施してください。'
+            ].join('\n');
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
@@ -100,7 +148,7 @@ PRを投稿いただきありがとうございます！
             console.log('✅ セルフレビューリマインダーを投稿しました');
       
       - name: Add Label
-        if: steps.check_comment.outputs.already_commented == 'false'
+        if: steps.check_checklist.outputs.needs_reminder == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -112,3 +160,24 @@ PRを投稿いただきありがとうございます！
             });
             
             console.log('🏷️  ラベル "needs-self-review" を追加しました');
+      
+      - name: Remove Label if Confirmed
+        if: steps.check_checklist.outputs.needs_reminder == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: 'needs-self-review'
+              });
+              console.log('✅ ラベル "needs-self-review" を削除しました');
+            } catch (error) {
+              if (error.status === 404) {
+                console.log('ℹ️  ラベル "needs-self-review" は既に削除されています');
+              } else {
+                throw error;
+              }
+            }
