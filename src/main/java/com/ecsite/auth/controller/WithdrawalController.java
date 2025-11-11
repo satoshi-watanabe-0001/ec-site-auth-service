@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -49,6 +51,8 @@ public class WithdrawalController {
    * <ul>
    *   <li>202 Accepted: 退会処理を受け付けました
    *   <li>400 Bad Request: バリデーションエラー
+   *   <li>401 Unauthorized: 認証が必要
+   *   <li>403 Forbidden: 自分自身のアカウントのみ退会可能
    *   <li>404 Not Found: ユーザーが存在しない
    *   <li>409 Conflict: ユーザーが既に退会処理中または退会済み
    * </ul>
@@ -61,6 +65,35 @@ public class WithdrawalController {
   public ResponseEntity<WithdrawalResponse> withdrawUser(
       @PathVariable("id") UUID userId, @Valid @RequestBody WithdrawalRequest request) {
     log.info("Withdrawal request received for user ID: {}", userId);
+
+    Authentication authentication =
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+            .getAuthentication();
+    if (authentication != null && authentication.getPrincipal() != null) {
+      String principalStr;
+      Object principal = authentication.getPrincipal();
+      if (principal instanceof String) {
+        principalStr = (String) principal;
+      } else if (principal instanceof org.springframework.security.core.userdetails.UserDetails) {
+        principalStr =
+            ((org.springframework.security.core.userdetails.UserDetails) principal).getUsername();
+      } else {
+        principalStr = principal.toString();
+      }
+
+      try {
+        UUID authenticatedUserId = UUID.fromString(principalStr);
+        if (!userId.equals(authenticatedUserId)) {
+          log.warn(
+              "Authorization failed: User {} attempted to withdraw user {}",
+              authenticatedUserId,
+              userId);
+          throw new AccessDeniedException("自分自身のアカウントのみ退会できます");
+        }
+      } catch (IllegalArgumentException e) {
+        log.warn("Invalid UUID format in authentication principal: {}", principalStr);
+      }
+    }
 
     WithdrawalResponse response = withdrawalService.withdrawUser(userId, request);
 
@@ -101,5 +134,23 @@ public class WithdrawalController {
     errorResponse.put("timestamp", LocalDateTime.now());
 
     return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+  }
+
+  /**
+   * AccessDeniedException（認可失敗）のエラーハンドラ
+   *
+   * @param ex AccessDeniedException
+   * @return HTTP 403とエラー詳細
+   */
+  @ExceptionHandler(AccessDeniedException.class)
+  public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
+    log.warn("Access denied: {}", ex.getMessage());
+
+    Map<String, Object> errorResponse = new HashMap<>();
+    errorResponse.put("status", "error");
+    errorResponse.put("message", ex.getMessage());
+    errorResponse.put("timestamp", LocalDateTime.now());
+
+    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
   }
 }

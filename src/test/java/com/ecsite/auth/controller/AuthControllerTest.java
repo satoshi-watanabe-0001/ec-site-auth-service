@@ -14,6 +14,7 @@ import com.ecsite.auth.dto.RegistrationResponse;
 import com.ecsite.auth.dto.UserResponse;
 import com.ecsite.auth.entity.User;
 import com.ecsite.auth.exception.UserAlreadyExistsException;
+import com.ecsite.auth.security.JwtUtil;
 import com.ecsite.auth.service.EmailVerificationService;
 import com.ecsite.auth.service.LoginService;
 import com.ecsite.auth.service.PasswordResetService;
@@ -45,6 +46,8 @@ class AuthControllerTest {
   @MockBean private LoginService loginService;
 
   @MockBean private PasswordResetService passwordResetService;
+
+  @MockBean private JwtUtil jwtUtil;
 
   private CreateUserRequest validRequest;
   private RegistrationResponse successResponse;

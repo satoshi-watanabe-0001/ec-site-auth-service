@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.ecsite.auth.config.SecurityConfig;
 import com.ecsite.auth.dto.WithdrawalRequest;
 import com.ecsite.auth.dto.WithdrawalResponse;
+import com.ecsite.auth.security.JwtUtil;
 import com.ecsite.auth.service.WithdrawalService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
@@ -39,6 +40,8 @@ class WithdrawalControllerTest {
   @Autowired private ObjectMapper objectMapper;
 
   @MockBean private WithdrawalService withdrawalService;
+
+  @MockBean private JwtUtil jwtUtil;
 
   private UUID userId;
   private WithdrawalRequest withdrawalRequest;
