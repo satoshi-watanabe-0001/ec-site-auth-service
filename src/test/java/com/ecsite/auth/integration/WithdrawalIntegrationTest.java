@@ -50,7 +50,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class WithdrawalIntegrationTest {
 
   @Container
-  static PostgreSQLContainer<?> postgres =
+  private static PostgreSQLContainer<?> postgres =
       new PostgreSQLContainer<>("postgres:15-alpine")
           .withDatabaseName("auth_test")
           .withUsername("test")
