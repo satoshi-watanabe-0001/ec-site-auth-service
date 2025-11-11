@@ -17,30 +17,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Get PR description
-        id: pr-info
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number
-            });
-            return {
-              body: pr.body || '',
-              title: pr.title || '',
-              number: pr.number
-            };
-      
       - name: Validate PR description
         id: validate
         uses: actions/github-script@v7
         with:
           script: |
-            const prInfo = ${{ fromJSON(steps['pr-info'].outputs.result) }};
-            const prBody = prInfo.body || '';
-            const prTitle = prInfo.title || '';
+            // PR情報を取得
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
+            const prBody = pr.body || '';
+            const prTitle = pr.title || '';
             
             // 検証結果を格納
             const results = {
@@ -248,9 +237,11 @@ jobs:
       - name: Post validation comment
         if: steps.validate.outputs.passed == 'false'
         uses: actions/github-script@v7
+        env:
+          VALIDATION_RESULTS: ${{ steps.validate.outputs.results }}
         with:
           script: |
-            const results = ${{ fromJSON(steps.validate.outputs.results) }};
+            const results = JSON.parse(process.env.VALIDATION_RESULTS);
             
             // コメント本文の作成
             let commentBody = '## 🚨 PR記載レベル品質ゲート: 改善が必要です\n\n';
@@ -351,9 +342,11 @@ jobs:
       - name: Post success comment
         if: steps.validate.outputs.passed == 'true'
         uses: actions/github-script@v7
+        env:
+          VALIDATION_RESULTS: ${{ steps.validate.outputs.results }}
         with:
           script: |
-            const results = ${{ fromJSON(steps.validate.outputs.results) }};
+            const results = JSON.parse(process.env.VALIDATION_RESULTS);
             
             let commentBody = '## ✅ PR記載レベル品質ゲート: 合格\n\n';
             commentBody += 'このPRの説明は組織標準の記載レベルを満たしています。\n\n';
