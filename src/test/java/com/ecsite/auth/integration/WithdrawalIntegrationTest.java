@@ -256,8 +256,7 @@ class WithdrawalIntegrationTest {
     Optional<User> updatedUser = userRepository.findById(testUser.getId());
     assertThat(updatedUser).isPresent();
     assertThat(updatedUser.get().getDeletionScheduledAt()).isNotNull();
-    assertThat(updatedUser.get().getWithdrawalReason())
-        .isEqualTo("Flywayマイグレーション確認テスト");
+    assertThat(updatedUser.get().getWithdrawalReason()).isEqualTo("Flywayマイグレーション確認テスト");
     assertThat(updatedUser.get().getDeletedAt()).isNull();
   }
 }
