@@ -38,8 +38,9 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const prBody = ${{ steps.pr-info.outputs.result }}.body;
-            const prTitle = ${{ steps.pr-info.outputs.result }}.title;
+            const prInfo = JSON.parse('${{ steps.pr-info.outputs.result }}');
+            const prBody = prInfo.body;
+            const prTitle = prInfo.title;
             
             // 検証結果を格納
             const results = {
