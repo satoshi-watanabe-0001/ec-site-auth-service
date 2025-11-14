@@ -1,0 +1,415 @@
+name: PR Description Quality Gate
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  validate-pr-description:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Validate PR description
+        id: validate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // PR情報を取得
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
+            const prBody = pr.body || '';
+            const prTitle = pr.title || '';
+            
+            // 検証結果を格納
+            const results = {
+              passed: true,
+              errors: [],
+              warnings: [],
+              stats: {}
+            };
+            
+            // ========================================
+            // 1. 必須セクションの存在確認
+            // ========================================
+            const requiredSections = [
+              { name: '変更内容の概要', pattern: /##\s*📋\s*変更内容の概要/i },
+              { name: '関連チケット', pattern: /##\s*🎯\s*関連チケット/i },
+              { name: '変更の詳細', pattern: /##\s*🔍\s*変更の詳細/i },
+              { name: 'テストの実施状況', pattern: /##\s*✅\s*テストの実施状況/i },
+              { name: 'セキュリティチェック', pattern: /##\s*🔒\s*セキュリティチェック/i },
+              { name: '組織標準チェックリスト', pattern: /##\s*✅\s*組織標準チェックリスト/i },
+              { name: 'レビュアーへの補足', pattern: /##\s*📖\s*レビュアーへの補足/i }
+            ];
+            
+            const missingSections = [];
+            for (const section of requiredSections) {
+              if (!section.pattern.test(prBody)) {
+                missingSections.push(section.name);
+              }
+            }
+            
+            if (missingSections.length > 0) {
+              results.passed = false;
+              results.errors.push({
+                type: 'missing-sections',
+                message: `必須セクションが不足しています: ${missingSections.join(', ')}`,
+                sections: missingSections
+              });
+            }
+            
+            // ========================================
+            // 2. 変更内容の概要の文字数チェック
+            // ========================================
+            const summaryMatch = prBody.match(/##\s*📋\s*変更内容の概要\s*\n+([\s\S]*?)(?=\n##|$)/i);
+            if (summaryMatch) {
+              const summaryText = summaryMatch[1].trim();
+              // コメント行、空行、マークダウン記号を除外
+              const cleanedText = summaryText
+                .replace(/<!--[\s\S]*?-->/g, '') // HTMLコメント除去
+                .replace(/^[#\-*>\s]+/gm, '') // マークダウン記号除去
+                .replace(/\n+/g, ' ') // 改行をスペースに
+                .trim();
+              
+              const charCount = cleanedText.length;
+              results.stats.summaryCharCount = charCount;
+              
+              if (charCount < 50) {
+                results.passed = false;
+                results.errors.push({
+                  type: 'insufficient-summary',
+                  message: `変更内容の概要が短すぎます（現在: ${charCount}文字、最低: 50文字）`,
+                  current: charCount,
+                  required: 50
+                });
+              }
+            } else {
+              results.passed = false;
+              results.errors.push({
+                type: 'missing-summary',
+                message: '変更内容の概要が記載されていません'
+              });
+            }
+            
+            // ========================================
+            // 3. チェックボックスの確認率チェック
+            // ========================================
+            const allCheckboxes = (prBody.match(/- \[[ x]\]/gi) || []).length;
+            const checkedBoxes = (prBody.match(/- \[x\]/gi) || []).length;
+            
+            results.stats.totalCheckboxes = allCheckboxes;
+            results.stats.checkedCheckboxes = checkedBoxes;
+            
+            if (allCheckboxes > 0) {
+              const checkRate = (checkedBoxes / allCheckboxes) * 100;
+              results.stats.checkRate = checkRate.toFixed(1);
+              
+              if (checkRate < 70) {
+                results.passed = false;
+                results.errors.push({
+                  type: 'insufficient-checks',
+                  message: `チェックボックスの確認率が不足しています（現在: ${checkRate.toFixed(1)}%、最低: 70%）`,
+                  current: checkRate.toFixed(1),
+                  required: 70,
+                  checked: checkedBoxes,
+                  total: allCheckboxes
+                });
+              } else if (checkRate < 85) {
+                results.warnings.push({
+                  type: 'low-check-rate',
+                  message: `チェックボックスの確認率が推奨値を下回っています（現在: ${checkRate.toFixed(1)}%、推奨: 85%以上）`,
+                  current: checkRate.toFixed(1),
+                  recommended: 85
+                });
+              }
+            } else {
+              results.warnings.push({
+                type: 'no-checkboxes',
+                message: 'チェックボックスが見つかりません。テンプレートを使用していますか?'
+              });
+            }
+            
+            // ========================================
+            // 4. 日本語記載の確認
+            // ========================================
+            const japanesePattern = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/;
+            if (!japanesePattern.test(prBody)) {
+              results.passed = false;
+              results.errors.push({
+                type: 'no-japanese',
+                message: '日本語での記載が必須です（組織標準要件）'
+              });
+            }
+            
+            // ========================================
+            // 5. 関連チケット番号の形式チェック
+            // ========================================
+            const ticketMatch = prBody.match(/##\s*🎯\s*関連チケット\s*\n+([\s\S]*?)(?=\n##|$)/i);
+            if (ticketMatch) {
+              const ticketText = ticketMatch[1].trim();
+              const hasTicketNumber = /#\d+|PBI-\d+|Issue-\d+|Ticket-\d+/i.test(ticketText);
+              
+              if (!hasTicketNumber && !ticketText.includes('なし') && !ticketText.includes('N/A')) {
+                results.warnings.push({
+                  type: 'unclear-ticket',
+                  message: '関連チケット番号が明確ではありません。形式: #123, PBI-456, Issue-789'
+                });
+              }
+            }
+            
+            // ========================================
+            // 6. 組織標準チェックリストの確認
+            // ========================================
+            const orgStandardSection = prBody.match(/##\s*✅\s*組織標準チェックリスト\s*\n+([\s\S]*?)(?=\n##|$)/i);
+            if (orgStandardSection) {
+              const criticalItems = [
+                { pattern: /日本語での記載を完了/, name: '日本語記載' },
+                { pattern: /コーディング規約に準拠/, name: 'コーディング規約' },
+                { pattern: /パブリックAPIにドキュメントコメント/, name: 'APIドキュメント' },
+                { pattern: /CI品質ゲートが全て通過/, name: 'CI品質ゲート' }
+              ];
+              
+              const uncheckedCritical = [];
+              for (const item of criticalItems) {
+                const itemMatch = orgStandardSection[1].match(new RegExp(`- \\[([x ]?)\\].*${item.pattern.source}`, 'i'));
+                if (itemMatch && itemMatch[1] !== 'x') {
+                  uncheckedCritical.push(item.name);
+                }
+              }
+              
+              if (uncheckedCritical.length > 0) {
+                results.warnings.push({
+                  type: 'unchecked-critical-items',
+                  message: `重要な組織標準項目が未確認です: ${uncheckedCritical.join(', ')}`,
+                  items: uncheckedCritical
+                });
+              }
+            }
+            
+            // ========================================
+            // 結果をJSON形式で返す
+            // ========================================
+            core.setOutput('passed', results.passed);
+            core.setOutput('results', JSON.stringify(results, null, 2));
+            
+            return results;
+      
+      - name: Add label if validation failed
+        if: steps.validate.outputs.passed == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              labels: ['pr-description-incomplete']
+            });
+      
+      - name: Remove label if validation passed
+        if: steps.validate.outputs.passed == 'true'
+        uses: actions/github-script@v7
+        continue-on-error: true
+        with:
+          script: |
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                name: 'pr-description-incomplete'
+              });
+            } catch (error) {
+              // ラベルが存在しない場合は無視
+              console.log('Label not found or already removed');
+            }
+      
+      - name: Post validation comment
+        if: steps.validate.outputs.passed == 'false'
+        uses: actions/github-script@v7
+        env:
+          VALIDATION_RESULTS: ${{ steps.validate.outputs.results }}
+        with:
+          script: |
+            const results = JSON.parse(process.env.VALIDATION_RESULTS);
+            
+            // コメント本文の作成
+            let commentBody = '## 🚨 PR記載レベル品質ゲート: 改善が必要です\n\n';
+            commentBody += 'このPRの説明は、組織標準の記載レベルに達していません。以下の項目を改善してください。\n\n';
+            
+            // エラー項目
+            if (results.errors.length > 0) {
+              commentBody += '### ❌ 必須改善項目\n\n';
+              for (const error of results.errors) {
+                commentBody += `- **${error.message}**\n`;
+                if (error.type === 'missing-sections') {
+                  commentBody += '  - 不足セクション:\n';
+                  for (const section of error.sections) {
+                    commentBody += `    - \`${section}\`\n`;
+                  }
+                } else if (error.type === 'insufficient-summary') {
+                  commentBody += `  - 現在: ${error.current}文字 → 必要: ${error.required}文字以上\n`;
+                } else if (error.type === 'insufficient-checks') {
+                  commentBody += `  - 現在: ${error.checked}/${error.total} (${error.current}%) → 必要: ${error.required}%以上\n`;
+                }
+                commentBody += '\n';
+              }
+            }
+            
+            // 警告項目
+            if (results.warnings.length > 0) {
+              commentBody += '### ⚠️ 推奨改善項目\n\n';
+              for (const warning of results.warnings) {
+                commentBody += `- ${warning.message}\n`;
+              }
+              commentBody += '\n';
+            }
+            
+            // 統計情報
+            commentBody += '### 📊 現在の記載状況\n\n';
+            commentBody += '| 項目 | 値 | 状態 |\n';
+            commentBody += '|------|-----|------|\n';
+            
+            if (results.stats.summaryCharCount !== undefined) {
+              const summaryStatus = results.stats.summaryCharCount >= 50 ? '✅' : '❌';
+              commentBody += `| 変更内容の概要 | ${results.stats.summaryCharCount}文字 | ${summaryStatus} (最低50文字) |\n`;
+            }
+            
+            if (results.stats.checkRate !== undefined) {
+              const checkStatus = parseFloat(results.stats.checkRate) >= 70 ? '✅' : '❌';
+              commentBody += `| チェックボックス確認率 | ${results.stats.checkRate}% (${results.stats.checkedCheckboxes}/${results.stats.totalCheckboxes}) | ${checkStatus} (最低70%) |\n`;
+            }
+            
+            commentBody += '\n';
+            
+            // 改善方法のガイダンス
+            commentBody += '### 💡 改善方法\n\n';
+            commentBody += '1. **PRテンプレートを使用**: `.github/PULL_REQUEST_TEMPLATE.md` を参照\n';
+            commentBody += '2. **必須セクションを全て記載**: 各セクションの見出しと内容を含める\n';
+            commentBody += '3. **変更内容を具体的に記載**: 最低50文字、推奨100文字以上\n';
+            commentBody += '4. **チェックリストを確認**: 該当する項目に `[x]` でチェック\n';
+            commentBody += '5. **日本語で記載**: 組織標準要件により必須\n\n';
+            
+            // 関連ドキュメント
+            commentBody += '### 📚 関連ドキュメント\n\n';
+            commentBody += '- [PRテンプレート](/08-templates/pr-templates/PULL_REQUEST_TEMPLATE.md)\n';
+            commentBody += '- [PRテンプレート使用ガイド](/08-templates/pr-templates/README.md)\n';
+            commentBody += '- [AI-PRE-WORK-CHECKLIST v1.3.0](/00-guides/AI-PRE-WORK-CHECKLIST.md) - Stage 3参照\n\n';
+            
+            commentBody += '---\n';
+            commentBody += '*このチェックはPR説明を編集すると自動的に再実行されます。*';
+            
+            // 既存のコメントを検索
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('🚨 PR記載レベル品質ゲート')
+            );
+            
+            if (botComment) {
+              // 既存のコメントを更新
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              // 新規コメントを投稿
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: commentBody
+              });
+            }
+      
+      - name: Post success comment
+        if: steps.validate.outputs.passed == 'true'
+        uses: actions/github-script@v7
+        env:
+          VALIDATION_RESULTS: ${{ steps.validate.outputs.results }}
+        with:
+          script: |
+            const results = JSON.parse(process.env.VALIDATION_RESULTS);
+            
+            let commentBody = '## ✅ PR記載レベル品質ゲート: 合格\n\n';
+            commentBody += 'このPRの説明は組織標準の記載レベルを満たしています。\n\n';
+            
+            // 統計情報
+            if (Object.keys(results.stats).length > 0) {
+              commentBody += '### 📊 記載状況\n\n';
+              commentBody += '| 項目 | 値 | 状態 |\n';
+              commentBody += '|------|-----|------|\n';
+              
+              if (results.stats.summaryCharCount !== undefined) {
+                commentBody += `| 変更内容の概要 | ${results.stats.summaryCharCount}文字 | ✅ |\n`;
+              }
+              
+              if (results.stats.checkRate !== undefined) {
+                commentBody += `| チェックボックス確認率 | ${results.stats.checkRate}% (${results.stats.checkedCheckboxes}/${results.stats.totalCheckboxes}) | ✅ |\n`;
+              }
+              
+              commentBody += '\n';
+            }
+            
+            // 警告項目（ある場合）
+            if (results.warnings.length > 0) {
+              commentBody += '### ⚠️ 推奨改善項目（任意）\n\n';
+              for (const warning of results.warnings) {
+                commentBody += `- ${warning.message}\n`;
+              }
+              commentBody += '\n';
+            }
+            
+            commentBody += '---\n';
+            commentBody += '次のステップ: レビュアーからのフィードバックをお待ちください。';
+            
+            // 既存の失敗コメントがあれば削除
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('PR記載レベル品質ゲート')
+            );
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: commentBody
+              });
+            }
+      
+      - name: Fail if validation failed
+        if: steps.validate.outputs.passed == 'false'
+        run: |
+          echo "::error::PR description does not meet quality standards"
+          exit 1
