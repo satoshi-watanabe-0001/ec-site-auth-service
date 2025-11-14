@@ -42,4 +42,20 @@ public class NotificationService {
     log.info(
         "Password reset URL: http://localhost:8081/api/v1/auth/reset-password?token={}", token);
   }
+
+  /**
+   * 退会確認用のメールを送信します。
+   *
+   * <p>現在はログ出力のみで、実際のNotification Service連携は今後実装予定です。
+   *
+   * @param email 送信先メールアドレス
+   * @param scheduledDeletionAt 削除予定日時
+   */
+  public void sendWithdrawalConfirmation(
+      String email, java.time.LocalDateTime scheduledDeletionAt) {
+    log.info("Sending withdrawal confirmation email to: {}", email);
+    log.info("Account will be permanently deleted at: {}", scheduledDeletionAt);
+    log.info(
+        "If you did not request this, please contact support immediately at support@example.com");
+  }
 }
