@@ -46,7 +46,7 @@ class WithdrawalServiceTest {
   @BeforeEach
   void setUp() {
     ReflectionTestUtils.setField(withdrawalService, "gracePeriodDays", 30);
-    
+
     userId = UUID.randomUUID();
 
     activeUser = new User();
