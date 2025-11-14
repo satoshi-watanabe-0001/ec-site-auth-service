@@ -39,6 +39,10 @@ jwt:
   access-token-expiration: 900000  # 15 minutes in milliseconds
   refresh-token-expiration: 2592000000 # 30 days in milliseconds
 
+# Withdrawal Configuration
+withdrawal:
+  grace-days: 30  # 退会猶予期間（日数）
+
 # Rate Limiting Configuration (Optional - uncomment if needed)
 # rate-limit:
 #   login-attempts: 5

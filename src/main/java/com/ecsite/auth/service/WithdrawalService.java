@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <ol>
  *   <li>Phase 1（即時）: ステータスをPENDING_DELETIONに変更、削除予定日時を設定
- *   <li>Phase 2（猶予期間）: 30日間の猶予期間、ユーザーはログイン不可
+ *   <li>Phase 2（猶予期間）: 設定可能な猶予期間（デフォルト30日）、ユーザーはログイン不可
  *   <li>Phase 3（最終処理）: ステータスをDELETEDに変更、個人情報を匿名化（将来実装）
  * </ol>
  */
@@ -32,7 +33,8 @@ public class WithdrawalService {
   private final UserRepository userRepository;
   private final NotificationService notificationService;
 
-  private static final int GRACE_PERIOD_DAYS = 30;
+  @Value("${withdrawal.grace-days:30}")
+  private int gracePeriodDays;
 
   /**
    * ユーザー退会処理を実行します
@@ -64,7 +66,7 @@ public class WithdrawalService {
       throw new IllegalStateException("User is already deleted");
     }
 
-    LocalDateTime scheduledDeletionAt = LocalDateTime.now().plusDays(GRACE_PERIOD_DAYS);
+    LocalDateTime scheduledDeletionAt = LocalDateTime.now().plusDays(gracePeriodDays);
 
     user.setStatus(User.UserStatus.PENDING_DELETION);
     user.setDeletionScheduledAt(scheduledDeletionAt);
@@ -108,7 +110,7 @@ public class WithdrawalService {
             .userId(user.getId())
             .userStatus(user.getStatus().name())
             .scheduledDeletionAt(user.getDeletionScheduledAt())
-            .gracePeriodDays(GRACE_PERIOD_DAYS)
+            .gracePeriodDays(gracePeriodDays)
             .build();
 
     return WithdrawalResponse.builder()
